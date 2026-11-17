@@ -14,7 +14,7 @@ const bucket=new Objects();
 Deno.serve(async(req:Request)=>{
  const url=new URL(req.url),path=url.pathname.replace(/^\/stepmom-api/,'').replace(/^\/functions\/v1\/stepmom-api/,'');
  const origin=req.headers.get('Origin')||'';
- const cors={'Access-Control-Allow-Origin':origin||'*','Access-Control-Allow-Headers':'authorization,content-type,apikey,x-client-info','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Max-Age':'600','Vary':'Origin'};
+ const cors={'Access-Control-Allow-Origin':origin||'*','Access-Control-Allow-Headers':'authorization,content-type,apikey,x-client-info','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Max-Age':'600','Access-Control-Expose-Headers':'Content-Disposition','Vary':'Origin'};
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
  const wrap=(r:Response)=>{const h=new Headers(r.headers);for(const [k,v]of Object.entries(cors))h.set(k,v);return new Response(r.body,{status:r.status,headers:h});};
  try{

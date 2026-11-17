@@ -12,6 +12,17 @@ export function validChunk(b) {
 }
 export function csvCell(v) { if(typeof v==='number'&&Number.isFinite(v))return String(v); const s=String(v??''); return '"'+(/^[=+\-@\t\r]/.test(s)?"'"+s:s).replaceAll('"','""')+'"'; }
 function csv(rows) { return '\uFEFF'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n'); }
+export const SAMPLE_HEADERS=['sample_index','frame_index','video_time_sec','time_since_play_sec','flip_time_monotonic_sec','wallclock_iso','bar_value','frame_interval_sec'];
+export function sampleRows(chunks,meta){
+ const ordered=[...chunks].sort((a,b)=>a.index-b.index);
+ const play=ordered.flatMap(c=>c.events).find(e=>e.type==='playback_started');
+ const start=Number.isFinite(play?.detail?.playStart)?play.detail.playStart:play?.t;
+ const timeOrigin=meta.client?.timeOrigin;
+ let index=0;
+ return [SAMPLE_HEADERS,...ordered.flatMap(c=>c.samples.map(r=>{
+  index++;return [index,r[4],r[1],Number.isFinite(start)?Number((r[0]-start).toFixed(6)):'',r[0],Number.isFinite(timeOrigin)?new Date(timeOrigin+r[0]*1000).toISOString():'',r[2],index===1?'':r[3]];
+ }))];
+}
 async function route(req,env) {
  const u=new URL(req.url), p=u.pathname;
  if(p.startsWith('/api/') && req.method!=='GET' && req.headers.get('Origin')!==u.origin)return json({error:'origin'},403);
@@ -76,8 +87,8 @@ async function route(req,env) {
    keys.sort();const chunks=[];for(const key of keys)chunks.push(await read(env.STUDY,key));
    const kind=u.searchParams.get('kind')||'samples';
    if(kind==='metadata')return json({...m,tokenHash:undefined,finish:end,chunkCount:keys.length});
-   const rows=kind==='events'?[['participant','event','performance_sec','video_sec','detail'],...chunks.flatMap(c=>c.events.map(e=>[m.participant,e.type,e.t,e.video,JSON.stringify(e.detail??'')]))]:[['participant','chunk','performance_sec','video_time_sec','bar_value','frame_interval_sec','frame_index'],...chunks.flatMap(c=>c.samples.map(s=>[m.participant,c.index,...s]))];
-   return new Response(csv(rows),{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="stepmom_${ex[1]}_${kind}.csv"`,'Cache-Control':'no-store'}});
+   const rows=kind==='events'?[['participant','event','performance_sec','video_sec','detail'],...chunks.flatMap(c=>c.events.map(e=>[m.participant,e.type,e.t,e.video,JSON.stringify(e.detail??'')]))]:sampleRows(chunks,m);
+   return new Response(csv(rows),{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="sara_${m.participant}_${m.created.slice(0,19).replaceAll(':','').replace('T','_')}_${kind}.csv"`,'Cache-Control':'no-store'}});
   }
   return json({error:'not_found'},404);
  }

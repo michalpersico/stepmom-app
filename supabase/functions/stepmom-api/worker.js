@@ -12,6 +12,12 @@ export function validChunk(b) {
 }
 export function csvCell(v) { if(typeof v==='number'&&Number.isFinite(v))return String(v); const s=String(v??''); return '"'+(/^[=+\-@\t\r]/.test(s)?"'"+s:s).replaceAll('"','""')+'"'; }
 function csv(rows) { return '\uFEFF'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n'); }
+const israelFormat=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jerusalem',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+export function israelWallclock(ms){
+ const parts=Object.fromEntries(israelFormat.formatToParts(new Date(ms)).map(p=>[p.type,p.value]));
+ return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}.${String(new Date(ms).getUTCMilliseconds()).padStart(3,'0')}`;
+}
+const precision6=v=>Number(Number(v).toFixed(6));
 export const SAMPLE_HEADERS=['sample_index','frame_index','video_time_sec','time_since_play_sec','flip_time_monotonic_sec','wallclock_iso','bar_value','frame_interval_sec'];
 export function sampleRows(chunks,meta){
  const ordered=[...chunks].sort((a,b)=>a.index-b.index);
@@ -20,7 +26,7 @@ export function sampleRows(chunks,meta){
  const timeOrigin=meta.client?.timeOrigin;
  let index=0;
  return [SAMPLE_HEADERS,...ordered.flatMap(c=>c.samples.map(r=>{
-  index++;return [index,r[4],r[1],Number.isFinite(start)?Number((r[0]-start).toFixed(6)):'',r[0],Number.isFinite(timeOrigin)?new Date(timeOrigin+r[0]*1000).toISOString():'',r[2],index===1?'':r[3]];
+  index++;return [index,r[4],precision6(r[1]),Number.isFinite(start)?precision6(r[0]-start):'',precision6(r[0]),Number.isFinite(timeOrigin)?israelWallclock(timeOrigin+r[0]*1000):'',r[2],index===1?'':precision6(r[3])];
  }))];
 }
 async function route(req,env) {

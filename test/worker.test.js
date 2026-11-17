@@ -18,7 +18,10 @@ test('sample export matches original PsychoPy CSV headers and preserves numbers 
  const reference=fs.readFileSync(new URL('./samples-header.csv',import.meta.url),'utf8').split(/\r?\n/)[0].split(',');
  assert.deepEqual(SAMPLE_HEADERS,reference);
  const rows=sampleRows([{index:1,samples:[[10.2,0.2,-21,.1,2]],events:[]},{index:0,samples:[[10.1,.1,0,0,1]],events:[{type:'playback_started',t:10.01,detail:{playStart:10}}]}],{client:{timeOrigin:0}});
- assert.deepEqual(rows[1],[1,1,.1,.1,10.1,'1970-01-01T00:00:10.100Z',0,'']);
- assert.deepEqual(rows[2],[2,2,.2,.2,10.2,'1970-01-01T00:00:10.200Z',-21,.1]);
+ assert.deepEqual(rows[1],[1,1,.1,.1,10.1,'1970-01-01T02:00:10.100',0,'']);
+ assert.deepEqual(rows[2],[2,2,.2,.2,10.2,'1970-01-01T02:00:10.200',-21,.1]);
  assert.equal(sampleRows([{index:0,samples:[[1,0,0,0,1]],events:[]}],{})[1][3],'');
 });
+
+test('local wallclock matches Israel standard and daylight-saving time',async()=>{const {israelWallclock}=await import('../worker.js');assert.equal(israelWallclock(Date.parse('2026-11-17T14:16:46.455Z')),'2026-11-17T16:16:46.455');assert.equal(israelWallclock(Date.parse('2026-07-01T21:30:00.123Z')),'2026-07-02T00:30:00.123');});
+test('late RAF timestamp cannot make the sampled time precede playback',async()=>{const fs=await import('node:fs'),vm=await import('node:vm');const source=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');const sample=source.slice(source.indexOf('function sample(now)'),source.indexOf('let flushing='));const rows=[];const context={active:true,rating:0,t:()=>10.005,lastFrame:null,frame:0,quality:{longFrames:0},samples:rows,video:{currentTime:.001},lastVideo:0,lastProgress:10,requestAnimationFrame:()=>1,raf:0,flush:()=>{}};vm.runInNewContext(sample+';sample(9995)',context);assert.equal(rows[0][0],10.005);assert.ok(rows[0][0]-10>=0);});

@@ -1,4 +1,5 @@
 const enc = new TextEncoder();
+export function canonical(v) { if(Array.isArray(v))return '['+v.map(canonical).join(',')+']'; if(v && typeof v==='object')return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}'; return JSON.stringify(v); }
 const json = (data, status=200) => new Response(JSON.stringify(data), {status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 export async function hash(value) { return [...new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode(value)))].map(x=>x.toString(16).padStart(2,'0')).join(''); }
 export async function equalSecret(a,b) { if(typeof a!=='string'||typeof b!=='string')return false; return (await hash(a))===(await hash(b)); }
@@ -48,7 +49,7 @@ async function route(req,env) {
    if(!validChunk(b))return json({error:'chunk'},400);
    const key=root+'chunks/'+String(b.index).padStart(6,'0')+'.json',raw=JSON.stringify(b);
    const existing=await env.STUDY.get(key);
-   if(existing){if(await existing.text()!==raw)return json({error:'chunk_conflict'},409);return json({saved:true});}
+   if(existing){if(canonical(JSON.parse(await existing.text()))!==canonical(b))return json({error:'chunk_conflict'},409);return json({saved:true});}
    const put=await env.STUDY.put(key,raw,{onlyIf:{etagDoesNotMatch:'*'}});
    if(!put)return json({error:'retry'},409);
    return json({saved:true});

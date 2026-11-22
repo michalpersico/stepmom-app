@@ -5,10 +5,16 @@ const secret=secrets.default||Object.values(secrets)[0]||Deno.env.get('SUPABASE_
 const headers={apikey:String(secret),'Content-Type':'application/json',...(String(secret).startsWith('eyJ')?{Authorization:'Bearer '+secret}:{})};
 async function rest(path:string,options:RequestInit={}){const r=await fetch(base+'/rest/v1/'+path,{...options,headers:{...headers,...options.headers}});if(!r.ok)throw Error('database_'+r.status);return r.status===204?null:r.json();}
 class Objects {
+ async getMany(keys:string[]){
+  const out=[];
+  for(let i=0;i<keys.length;i+=40){const batch=keys.slice(i,i+40);const rows=await rest('stepmom_objects?select=key,value&key=in.'+encodeURIComponent('('+batch.map(k=>JSON.stringify(k)).join(',')+')')+'&limit=40');const found=new Map(rows.map((r:any)=>[r.key,r.value]));for(const key of batch)out.push(found.get(key)||null);}
+  return out;
+ }
+
  async get(key:string){const rows=await rest('stepmom_objects?select=value&key=eq.'+encodeURIComponent(key));if(!rows.length)return null;const value=rows[0].value;return {json:async()=>value,text:async()=>JSON.stringify(value)};}
  async head(key:string){if(key==='media/stepmom2026.mp4'){const cfg=await this.get('config/media');return cfg?{size:1}:null;}return await this.get(key)?{size:1}:null;}
  async put(key:string,raw:string,options:any={}){const conditional=!!options.onlyIf;const rows=await rest('stepmom_objects?on_conflict=key',{method:'POST',headers:{Prefer:(conditional?'resolution=ignore-duplicates':'resolution=merge-duplicates')+',return=representation'},body:JSON.stringify({key,value:JSON.parse(raw),updated_at:new Date().toISOString()})});return rows?.length?{etag:'stored'}:null;}
- async list({prefix,delimiter,limit=1000,cursor}:any){const offset=Number(cursor||0);const pattern=delimiter?prefix+'*/manifest.json':prefix+'*';const rows=await rest('stepmom_objects?select=key&order=key&key=like.'+encodeURIComponent(pattern)+'&limit='+(limit+1)+'&offset='+offset);const truncated=rows.length>limit;const selected=rows.slice(0,limit);return {objects:delimiter?[]:selected.map((r:any)=>({key:r.key})),delimitedPrefixes:delimiter?selected.map((r:any)=>r.key.slice(0,-'manifest.json'.length)):[],truncated,cursor:String(offset+limit)};}
+ async list({prefix,delimiter,limit=1000,cursor}:any){limit=Math.min(limit,500);const offset=Number(cursor||0);const pattern=delimiter?prefix+'*/manifest.json':prefix+'*';const rows=await rest('stepmom_objects?select=key&order=key&key=like.'+encodeURIComponent(pattern)+'&limit='+(limit+1)+'&offset='+offset);const truncated=rows.length>limit;const selected=rows.slice(0,limit);return {objects:delimiter?[]:selected.map((r:any)=>({key:r.key})),delimitedPrefixes:delimiter?selected.map((r:any)=>r.key.slice(0,-'manifest.json'.length)):[],truncated,cursor:String(offset+limit)};}
 }
 const bucket=new Objects();
 Deno.serve(async(req:Request)=>{

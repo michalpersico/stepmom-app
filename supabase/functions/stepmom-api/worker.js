@@ -90,9 +90,13 @@ async function route(req,env) {
    const root='sessions/'+ex[1]+'/',m=await read(env.STUDY,root+'manifest.json');if(!m)return json({error:'missing'},404);
    const end=await read(env.STUDY,root+'finish.json');let cursor,keys=[];
    do{const r=await env.STUDY.list({prefix:root+'chunks/',cursor});keys.push(...r.objects.map(o=>o.key));cursor=r.truncated?r.cursor:undefined;}while(cursor);
-   keys.sort();const chunks=[];for(const key of keys)chunks.push(await read(env.STUDY,key));
+   keys.sort();
    const kind=u.searchParams.get('kind')||'samples';
    if(kind==='metadata')return json({...m,tokenHash:undefined,finish:end,chunkCount:keys.length});
+   const chunks=[];
+   if(env.STUDY.getMany)chunks.push(...await env.STUDY.getMany(keys));
+   else for(let i=0;i<keys.length;i+=8)chunks.push(...await Promise.all(keys.slice(i,i+8).map(key=>read(env.STUDY,key))));
+   if(chunks.some(c=>!c))return json({error:'missing_chunks'},409);
    const rows=kind==='events'?[['participant','event','performance_sec','video_sec','detail'],...chunks.flatMap(c=>c.events.map(e=>[m.participant,e.type,e.t,e.video,JSON.stringify(e.detail??'')]))]:sampleRows(chunks,m);
    return new Response(csv(rows),{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="sara_${m.participant}_${m.created.slice(0,19).replaceAll(':','').replace('T','_')}_${kind}.csv"`,'Cache-Control':'no-store'}});
   }
